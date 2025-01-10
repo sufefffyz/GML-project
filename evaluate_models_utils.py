@@ -49,7 +49,7 @@ def evaluate_model_link_prediction(model_name: str, model: jt.Module, neighbor_s
     with jt.no_grad():
         # store evaluate losses and metrics
         evaluate_losses, evaluate_metrics = [], []
-        evaluate_idx_data_loader_tqdm = tqdm(evaluate_idx_data_loader, ncols=120)
+        evaluate_idx_data_loader_tqdm = tqdm(evaluate_idx_data_loader, ncols=120, disable=True)
         for batch_idx, evaluate_data_indices in enumerate(evaluate_idx_data_loader_tqdm):
             evaluate_data_indices = evaluate_data_indices.numpy()
             batch_src_node_ids, batch_dst_node_ids, batch_node_interact_times, batch_edge_ids = \
@@ -155,7 +155,8 @@ def evaluate_model_link_prediction(model_name: str, model: jt.Module, neighbor_s
 
             evaluate_metrics.append(get_link_prediction_metrics(predicts=predicts, labels=labels))
 
-            evaluate_idx_data_loader_tqdm.set_description(f'evaluate for the {batch_idx + 1}-th batch, evaluate loss: {loss.item()}')
+            if (batch_idx+1)%100==0:
+                evaluate_idx_data_loader_tqdm.set_description(f'evaluate for the {batch_idx + 1}-th batch, evaluate loss: {loss.item()}')
 
     return evaluate_losses, evaluate_metrics
 
@@ -184,7 +185,7 @@ def evaluate_model_node_classification(model_name: str, model: jt.Module, neighb
     with jt.no_grad():
         # store evaluate losses, trues and predicts
         evaluate_total_loss, evaluate_y_trues, evaluate_y_predicts = 0.0, [], []
-        evaluate_idx_data_loader_tqdm = tqdm(evaluate_idx_data_loader, ncols=120)
+        evaluate_idx_data_loader_tqdm = tqdm(evaluate_idx_data_loader, ncols=120, disable=True)
         for batch_idx, evaluate_data_indices in enumerate(evaluate_idx_data_loader_tqdm):
             evaluate_data_indices = evaluate_data_indices.numpy()
             batch_src_node_ids, batch_dst_node_ids, batch_node_interact_times, batch_edge_ids, batch_labels = \
@@ -239,7 +240,8 @@ def evaluate_model_node_classification(model_name: str, model: jt.Module, neighb
             evaluate_y_trues.append(labels)
             evaluate_y_predicts.append(predicts)
 
-            evaluate_idx_data_loader_tqdm.set_description(f'evaluate for the {batch_idx + 1}-th batch, evaluate loss: {loss.item()}')
+            if (batch_idx+1) % 100 == 0:
+                evaluate_idx_data_loader_tqdm.set_description(f'evaluate for the {batch_idx + 1}-th batch, evaluate loss: {loss.item()}')
 
         evaluate_total_loss /= (batch_idx + 1)
         # evaluate_y_trues = torch.cat(evaluate_y_trues, dim=0)
@@ -314,7 +316,7 @@ def evaluate_edge_bank_link_prediction(args: argparse.Namespace, train_data: Dat
         test_neg_edge_sampler.reset_random_state()
 
         test_losses, test_metrics = [], []
-        test_idx_data_loader_tqdm = tqdm(test_idx_data_loader, ncols=120)
+        test_idx_data_loader_tqdm = tqdm(test_idx_data_loader, total=(len(test_idx_data_loader)-1)//args.batch_size+1, ncols=120, disable=True)
 
         for batch_idx, test_data_indices in enumerate(test_idx_data_loader_tqdm):
             test_data_indices = test_data_indices.numpy()
@@ -361,7 +363,8 @@ def evaluate_edge_bank_link_prediction(args: argparse.Namespace, train_data: Dat
 
             test_metrics.append(get_link_prediction_metrics(predicts=predicts, labels=labels))
 
-            test_idx_data_loader_tqdm.set_description(f'test for the {batch_idx + 1}-th batch, test loss: {loss.item()}')
+            if (batch_idx+1) % 100 == 0:
+                test_idx_data_loader_tqdm.set_description(f'test for the {batch_idx + 1}-th batch, test loss: {loss.item()}')
 
         # store the evaluation metrics at the current run
         test_metric_dict = {}

@@ -1,6 +1,8 @@
 import numpy as np
-import torch
-import torch.nn as nn
+# import torch
+# import torch.nn as nn
+import jittor as jt
+import jittor.nn as nn
 
 from models.modules import TimeEncoder, TransformerEncoder
 from utils.utils import NeighborSampler
@@ -24,12 +26,12 @@ class TCL(nn.Module):
         """
         super(TCL, self).__init__()
 
-        self.node_raw_features = torch.from_numpy(node_raw_features.astype(np.float32)).to(device)
-        self.edge_raw_features = torch.from_numpy(edge_raw_features.astype(np.float32)).to(device)
+        self._node_raw_features = jt.array(node_raw_features.astype(np.float32))
+        self._edge_raw_features = jt.array(edge_raw_features.astype(np.float32))
 
         self.neighbor_sampler = neighbor_sampler
-        self.node_feat_dim = self.node_raw_features.shape[1]
-        self.edge_feat_dim = self.edge_raw_features.shape[1]
+        self.node_feat_dim = self._node_raw_features.shape[1]
+        self.edge_feat_dim = self._edge_raw_features.shape[1]
         self.time_feat_dim = time_feat_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
@@ -40,11 +42,14 @@ class TCL(nn.Module):
         self.time_encoder = TimeEncoder(time_dim=time_feat_dim)
         self.depth_embedding = nn.Embedding(num_embeddings=num_depths, embedding_dim=self.node_feat_dim)
 
-        self.projection_layer = nn.ModuleDict({
-            'node': nn.Linear(in_features=self.node_feat_dim, out_features=self.node_feat_dim, bias=True),
-            'edge': nn.Linear(in_features=self.edge_feat_dim, out_features=self.node_feat_dim, bias=True),
-            'time': nn.Linear(in_features=self.time_feat_dim, out_features=self.node_feat_dim, bias=True)
-        })
+        # self.projection_layer = nn.ModuleDict({
+        #     'node': nn.Linear(in_features=self.node_feat_dim, out_features=self.node_feat_dim, bias=True),
+        #     'edge': nn.Linear(in_features=self.edge_feat_dim, out_features=self.node_feat_dim, bias=True),
+        #     'time': nn.Linear(in_features=self.time_feat_dim, out_features=self.node_feat_dim, bias=True)
+        # })
+        self.projection_layer_node = nn.Linear(in_features=self.node_feat_dim, out_features=self.node_feat_dim, bias=True)
+        self.projection_layer_edge = nn.Linear(in_features=self.edge_feat_dim, out_features=self.node_feat_dim, bias=True)
+        self.projection_layer_time = nn.Linear(in_features=self.time_feat_dim, out_features=self.node_feat_dim, bias=True)
 
         self.transformers = nn.ModuleList([
             TransformerEncoder(attention_dim=self.node_feat_dim, num_heads=self.num_heads, dropout=self.dropout)
@@ -113,14 +118,14 @@ class TCL(nn.Module):
                               nodes_edge_ids=dst_neighbor_edge_ids, nodes_neighbor_times=dst_neighbor_times, time_encoder=self.time_encoder)
 
         # Tensor, shape (batch_size, num_neighbors + 1, node_feat_dim)
-        src_nodes_neighbor_node_raw_features = self.projection_layer['node'](src_nodes_neighbor_node_raw_features)
-        src_nodes_edge_raw_features = self.projection_layer['edge'](src_nodes_edge_raw_features)
-        src_nodes_neighbor_time_features = self.projection_layer['time'](src_nodes_neighbor_time_features)
+        src_nodes_neighbor_node_raw_features = self.projection_layer_node(src_nodes_neighbor_node_raw_features)
+        src_nodes_edge_raw_features = self.projection_layer_edge(src_nodes_edge_raw_features)
+        src_nodes_neighbor_time_features = self.projection_layer_time(src_nodes_neighbor_time_features)
 
         # Tensor, shape (batch_size, num_neighbors + 1, node_feat_dim)
-        dst_nodes_neighbor_node_raw_features = self.projection_layer['node'](dst_nodes_neighbor_node_raw_features)
-        dst_nodes_edge_raw_features = self.projection_layer['edge'](dst_nodes_edge_raw_features)
-        dst_nodes_neighbor_time_features = self.projection_layer['time'](dst_nodes_neighbor_time_features)
+        dst_nodes_neighbor_node_raw_features = self.projection_layer_node(dst_nodes_neighbor_node_raw_features)
+        dst_nodes_edge_raw_features = self.projection_layer_edge(dst_nodes_edge_raw_features)
+        dst_nodes_neighbor_time_features = self.projection_layer_time(dst_nodes_neighbor_time_features)
 
         # Tensor, shape (batch_size, num_neighbors + 1, node_feat_dim)
         src_node_features = src_nodes_neighbor_node_raw_features + src_nodes_edge_raw_features + src_nodes_neighbor_time_features + src_nodes_neighbor_depth_features
@@ -165,14 +170,14 @@ class TCL(nn.Module):
         :return:
         """
         # Tensor, shape (batch_size, num_neighbors + 1, node_feat_dim)
-        nodes_neighbor_node_raw_features = self.node_raw_features[torch.from_numpy(nodes_neighbor_ids)]
+        nodes_neighbor_node_raw_features = self._node_raw_features[jt.array(nodes_neighbor_ids)]
         # Tensor, shape (batch_size, num_neighbors + 1, edge_feat_dim)
-        nodes_edge_raw_features = self.edge_raw_features[torch.from_numpy(nodes_edge_ids)]
+        nodes_edge_raw_features = self._edge_raw_features[jt.array(nodes_edge_ids)]
         # Tensor, shape (batch_size, num_neighbors + 1, time_feat_dim)
-        nodes_neighbor_time_features = time_encoder(timestamps=torch.from_numpy(node_interact_times[:, np.newaxis] - nodes_neighbor_times).float().to(self.device))
+        nodes_neighbor_time_features = time_encoder(timestamps=jt.array(node_interact_times[:, np.newaxis] - nodes_neighbor_times).float())
         assert nodes_neighbor_ids.shape[1] == self.depth_embedding.weight.shape[0]
         # Tensor, shape (num_neighbors + 1, node_feat_dim)
-        nodes_neighbor_depth_features = self.depth_embedding(torch.tensor(range(nodes_neighbor_ids.shape[1])).to(self.device))
+        nodes_neighbor_depth_features = self.depth_embedding(jt.array(np.arange(nodes_neighbor_ids.shape[1])).float())
 
         return nodes_neighbor_node_raw_features, nodes_edge_raw_features, nodes_neighbor_time_features, nodes_neighbor_depth_features
 

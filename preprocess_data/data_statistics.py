@@ -8,8 +8,7 @@ def pprint_df(df, tablefmt='psql'):
 
 
 if __name__ == "__main__":
-    all_datasets = ['wikipedia', 'reddit', 'mooc', 'lastfm', 'myket', 'enron', 'SocialEvo', 'uci',
-                    'Flights', 'CanParl', 'USLegis', 'UNtrade', 'UNvote', 'Contacts']
+    all_datasets = ['wikipedia', 'reddit', 'mooc', 'lastfm']
     records = []
     for dataset_name in sorted(all_datasets, key=lambda v: v.upper()):
         edge_raw_features = np.load('../processed_data/{}/ml_{}.npy'.format(dataset_name, dataset_name))

@@ -14,7 +14,7 @@ import jittor.nn as nn
 
 from models.TGAT import TGAT
 from models.MemoryModel import MemoryModel, compute_src_dst_node_time_shifts
-from models.CAWN import CAWN
+# from models.CAWN import CAWN
 from models.TCL import TCL
 from models.GraphMixer import GraphMixer
 from models.DyGFormer import DyGFormer
@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
             # store train losses, trues and predicts
             train_total_loss, train_y_trues, train_y_predicts = 0.0, [], []
-            train_idx_data_loader_tqdm = tqdm(train_idx_data_loader, ncols=120)
+            train_idx_data_loader_tqdm = tqdm(train_idx_data_loader, total=(len(train_idx_data_loader)-1)//args.batch_size+1, ncols=120)
             for batch_idx, train_data_indices in enumerate(train_idx_data_loader_tqdm):
                 train_data_indices = train_data_indices.numpy()
                 batch_src_node_ids, batch_dst_node_ids, batch_node_interact_times, batch_edge_ids, batch_labels = \

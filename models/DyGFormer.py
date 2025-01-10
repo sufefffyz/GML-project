@@ -34,22 +34,22 @@ class DyGFormer(jt.Module):
 
         # self.node_raw_features = torch.from_numpy(node_raw_features.astype(np.float32)).to(device)
         # self.edge_raw_features = torch.from_numpy(edge_raw_features.astype(np.float32)).to(device)
-        self.node_raw_features = jt.array(node_raw_features.astype(np.float32))
-        self.edge_raw_features = jt.array(edge_raw_features.astype(np.float32))
+        self._node_raw_features = jt.array(node_raw_features.astype(np.float32))
+        self._edge_raw_features = jt.array(edge_raw_features.astype(np.float32))
 
-        self.num_nodes = self.node_raw_features.shape[0] - 1
-        self.num_edges = self.edge_raw_features.shape[0] - 1
+        self.num_nodes = self._node_raw_features.shape[0] - 1
+        self.num_edges = self._edge_raw_features.shape[0] - 1
 
         self.neighbor_sampler = neighbor_sampler
-        self.node_feat_dim = self.node_raw_features.shape[1]
-        self.edge_feat_dim = self.edge_raw_features.shape[1]
+        self.node_feat_dim = self._node_raw_features.shape[1]
+        self.edge_feat_dim = self._edge_raw_features.shape[1]
         self.time_feat_dim = time_feat_dim
         self.channel_embedding_dim = channel_embedding_dim
         self.patch_size = patch_size
 
         self.neighbor_sampler = neighbor_sampler
-        self.node_feat_dim = self.node_raw_features.shape[1]
-        self.edge_feat_dim = self.edge_raw_features.shape[1]
+        self.node_feat_dim = self._node_raw_features.shape[1]
+        self.edge_feat_dim = self._edge_raw_features.shape[1]
         self.time_feat_dim = time_feat_dim
         self.channel_embedding_dim = channel_embedding_dim
         self.patch_size = patch_size
@@ -283,10 +283,10 @@ class DyGFormer(jt.Module):
         """
         # Tensor, shape (batch_size, max_seq_length, node_feat_dim)
         # padded_nodes_neighbor_node_raw_features = self.node_raw_features[torch.from_numpy(padded_nodes_neighbor_ids)]
-        padded_nodes_neighbor_node_raw_features = self.node_raw_features[jt.array(padded_nodes_neighbor_ids)]
+        padded_nodes_neighbor_node_raw_features = self._node_raw_features[jt.array(padded_nodes_neighbor_ids)]
         # Tensor, shape (batch_size, max_seq_length, edge_feat_dim)
         # padded_nodes_edge_raw_features = self.edge_raw_features[torch.from_numpy(padded_nodes_edge_ids)]
-        padded_nodes_edge_raw_features = self.edge_raw_features[jt.array(padded_nodes_edge_ids)]
+        padded_nodes_edge_raw_features = self._edge_raw_features[jt.array(padded_nodes_edge_ids)]
         # Tensor, shape (batch_size, max_seq_length, time_feat_dim)
         # padded_nodes_neighbor_time_features = time_encoder(timestamps=torch.from_numpy(node_interact_times[:, np.newaxis] - padded_nodes_neighbor_times).float().to(self.device))
         padded_nodes_neighbor_time_features = time_encoder(timestamps=jt.array(node_interact_times[:, np.newaxis] - padded_nodes_neighbor_times).float())

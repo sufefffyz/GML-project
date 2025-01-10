@@ -26,13 +26,13 @@ class TGAT(jt.Module):
         super(TGAT, self).__init__()
 
         # self.node_raw_features = torch.from_numpy(node_raw_features.astype(np.float32)).to(device)
-        self.node_raw_features = jt.array(node_raw_features.astype(np.float32))
+        self._node_raw_features = jt.array(node_raw_features.astype(np.float32))
         # self.edge_raw_features = torch.from_numpy(edge_raw_features.astype(np.float32)).to(device)
-        self.edge_raw_features = jt.array(edge_raw_features.astype(np.float32))
+        self._edge_raw_features = jt.array(edge_raw_features.astype(np.float32))
 
         self.neighbor_sampler = neighbor_sampler
-        self.node_feat_dim = self.node_raw_features.shape[1]
-        self.edge_feat_dim = self.edge_raw_features.shape[1]
+        self.node_feat_dim = self._node_raw_features.shape[1]
+        self.edge_feat_dim = self._edge_raw_features.shape[1]
         self.time_feat_dim = time_feat_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
@@ -87,9 +87,10 @@ class TGAT(jt.Module):
         node_time_features = self.time_encoder(timestamps=jt.zeros(node_interact_times.shape).unsqueeze(dim=1))
         # Tensor, shape (batch_size, node_feat_dim)
         # node_raw_features = self.node_raw_features[torch.from_numpy(node_ids)]
-        node_raw_features = self.node_raw_features[jt.array(node_ids)]
+        node_raw_features = self._node_raw_features[jt.array(node_ids)]
 
         if current_layer_num == 0:
+            # print('node_raw_features:', node_raw_features)
             return node_raw_features
         else:
             # get source node representations by aggregating embeddings from the previous (current_layer_num - 1)-th layer
@@ -127,7 +128,7 @@ class TGAT(jt.Module):
 
             # get edge features, shape (batch_size, num_neighbors, edge_feat_dim)
             # neighbor_edge_features = self.edge_raw_features[torch.from_numpy(neighbor_edge_ids)]
-            neighbor_edge_features = self.edge_raw_features[jt.array(neighbor_edge_ids)]
+            neighbor_edge_features = self._edge_raw_features[jt.array(neighbor_edge_ids)]
             # temporal graph convolution
             # Tensor, output shape (batch_size, node_feat_dim + time_feat_dim)
             output, _ = self.temporal_conv_layers[current_layer_num - 1](node_features=node_conv_features,

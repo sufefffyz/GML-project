@@ -50,6 +50,8 @@ def get_link_prediction_args(is_evaluation: bool = False):
     parser.add_argument('--negative_sample_strategy', type=str, default='random', choices=['random', 'historical', 'inductive'],
                         help='strategy for the negative edge sampling')
     parser.add_argument('--load_best_configs', action='store_true', default=False, help='whether to load the best configurations')
+
+    parser.add_argument('--seed', type=int, default=0, help='random seed')
     # args = parser.parse_args()
     # # args.device = f'cuda:{args.gpu}' if torch.cuda.is_available() and args.gpu >= 0 else 'cpu'
     # args.device = f'cuda:{args.gpu}' if jt.has_cuda==1 and args.gpu >= 0 else 'cpu'

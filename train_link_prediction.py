@@ -15,8 +15,8 @@ import jittor.nn as nn
 from models.TGAT import TGAT
 from models.MemoryModel import MemoryModel, compute_src_dst_node_time_shifts
 # from models.CAWN import CAWN
-# from models.TCL import TCL
-# from models.GraphMixer import GraphMixer
+from models.TCL import TCL
+from models.GraphMixer import GraphMixer
 from models.DyGFormer import DyGFormer
 from models.modules import MergeLayer
 from utils.utils import set_random_seed, convert_to_gpu, get_parameter_sizes, create_optimizer
@@ -67,9 +67,10 @@ if __name__ == "__main__":
 
     for run in range(args.num_runs):
 
-        set_random_seed(seed=run)
+        # set_random_seed(seed=run)
 
-        args.seed = run
+        # args.seed = run
+        set_random_seed(seed=args.seed)
         args.save_model_name = f'{args.model_name}_seed{args.seed}'
 
         # set up logger
@@ -134,7 +135,6 @@ if __name__ == "__main__":
                     f'{get_parameter_sizes(model) * 4 / 1024} KB, {get_parameter_sizes(model) * 4 / 1024 / 1024} MB.')
 
         optimizer = create_optimizer(model=model, optimizer_name=args.optimizer, learning_rate=args.learning_rate, weight_decay=args.weight_decay)
-
         # model = convert_to_gpu(model, device=args.device)
 
         save_model_folder = f"./saved_models/{args.model_name}/{args.dataset_name}/{args.save_model_name}/"
@@ -158,7 +158,8 @@ if __name__ == "__main__":
 
             # store train losses and metrics
             train_losses, train_metrics = [], []
-            train_idx_data_loader_tqdm = tqdm(train_idx_data_loader, ncols=120)
+            # print('dataloader length', len(train_idx_data_loader))
+            train_idx_data_loader_tqdm = tqdm(train_idx_data_loader, total=(len(train_idx_data_loader)-1)//args.batch_size+1, ncols=120)
             for batch_idx, train_data_indices in enumerate(train_idx_data_loader_tqdm):
                 train_data_indices = train_data_indices.numpy()
                 batch_src_node_ids, batch_dst_node_ids, batch_node_interact_times, batch_edge_ids = \
@@ -261,7 +262,8 @@ if __name__ == "__main__":
                 # loss.backward()
                 optimizer.step(loss)
 
-                train_idx_data_loader_tqdm.set_description(f'Epoch: {epoch + 1}, train for the {batch_idx + 1}-th batch, train loss: {loss.item()}')
+                if (batch_idx+1) % 100 == 0:
+                    train_idx_data_loader_tqdm.set_description(f'Epoch: {epoch + 1}, train for the {batch_idx + 1}-th batch, train loss: {loss.item()}')
 
                 if args.model_name in ['JODIE', 'DyRep', 'TGN']:
                     # detach the memories and raw messages of nodes in the memory bank after each batch, so we don't back propagate to the start of time

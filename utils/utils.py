@@ -188,7 +188,7 @@ class NeighborSampler:
                         # for extreme case that node_neighbor_sampled_probabilities only contains -1e10, which will make the denominator of softmax be zero,
                         # torch.softmax() function can tackle this case
                         # node_neighbor_sampled_probabilities = torch.softmax(torch.from_numpy(node_neighbor_sampled_probabilities).float(), dim=0).numpy()
-                        node_neighbor_sampled_probabilities = jt.softmax(jt.array(node_neighbor_sampled_probabilities).float32(), dim=0).numpy()
+                        node_neighbor_sampled_probabilities = nn.softmax(jt.array(node_neighbor_sampled_probabilities).float32(), dim=0).numpy()
                     if self.seed is None:
                         sampled_indices = np.random.choice(a=len(node_neighbor_ids), size=num_neighbors, p=node_neighbor_sampled_probabilities)
                     else:

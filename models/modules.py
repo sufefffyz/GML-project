@@ -25,7 +25,9 @@ class TimeEncoder(jt.Module):
 
         if not parameter_requires_grad:
             self.w.weight.requires_grad = False
+            # self.w.weight.stop_grad()
             self.w.bias.requires_grad = False
+            # self.w.bias.stop_grad()
 
     # def forward(self, timestamps: torch.Tensor):
     def execute(self, timestamps: jt.Var):
@@ -54,7 +56,7 @@ class MergeLayer(jt.Module):
         :param hidden_dim: int, hidden dimension
         :param output_dim: int, dimension of the output
         """
-        super().__init__()
+        super(MergeLayer, self).__init__()
         self.fc1 = nn.Linear(input_dim1 + input_dim2, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, output_dim)
         self.act = nn.ReLU()
@@ -82,7 +84,7 @@ class MLPClassifier(jt.Module):
         :param input_dim: int, dimension of input
         :param dropout: float, dropout rate
         """
-        super().__init__()
+        super(MLPClassifier, self).__init__()
         self.fc1 = nn.Linear(input_dim, 80)
         self.fc2 = nn.Linear(80, 10)
         self.fc3 = nn.Linear(10, 1)
@@ -182,7 +184,13 @@ class MultiHeadAttention(jt.Module):
 
         # Tensor, shape (batch_size, num_heads, 1, num_neighbors)
         # attention = torch.einsum('bhld,bhnd->bhln', query, key)
-        attention = jt.linalg.einsum('bhld,bhnd->bhln', query, key)
+        # print(query.shape, key.shape)
+        # print('---------------query----------------', query)
+        # query = query.reshape(query.shape[0]*query.shape[1], query.shape[2], query.shape[3])
+        # attention = jt.linalg.einsum('bhld,bhnd->bhln', query, key)
+        attention = jt.nn.matmul(query, key.permute(0, 1, 3, 2))
+
+        # print('---------------query----------------', query)
         attention = attention * self.scaling_factor
 
         # Tensor, shape (batch_size, 1, num_neighbors)
@@ -201,15 +209,17 @@ class MultiHeadAttention(jt.Module):
         # Tensor, shape (batch_size, num_heads, 1, num_neighbors)
         attention_scores = self.dropout(jt.nn.softmax(attention, dim=-1))
 
+        # print('out', attention_scores)
         # Tensor, shape (batch_size, num_heads, 1, self.head_dim)
         # attention_output = torch.einsum('bhln,bhnd->bhld', attention_scores, value)
-        attention_output = jt.linalg.einsum('bhln,bhnd->bhld', attention_scores, value)
-
+        # attention_output = jt.linalg.einsum('bhln,bhnd->bhld', attention_scores, value)
+        attention_output = jt.nn.matmul(attention_scores, value)
         # Tensor, shape (batch_size, 1, num_heads * self.head_dim), where num_heads * self.head_dim is equal to node_feat_dim + time_feat_dim
         attention_output = attention_output.permute(0, 2, 1, 3).flatten(start_dim=2)
 
         # Tensor, shape (batch_size, 1, node_feat_dim + time_feat_dim)
         output = self.dropout(self.residual_fc(attention_output))
+
 
         # Tensor, shape (batch_size, 1, node_feat_dim + time_feat_dim)
         output = self.layer_norm(output + residual)
@@ -218,6 +228,7 @@ class MultiHeadAttention(jt.Module):
         output = output.squeeze(dim=1)
         # Tensor, shape (batch_size, num_heads, num_neighbors)
         attention_scores = attention_scores.squeeze(dim=2)
+        # print('out', output)
 
         return output, attention_scores
 

@@ -35,12 +35,12 @@ class MemoryModel(jt.Module):
         super(MemoryModel, self).__init__()
 
         # self.node_raw_features = torch.from_numpy(node_raw_features.astype(np.float32)).to(device)
-        self.node_raw_features = jt.array(node_raw_features.astype(np.float32))
+        self._node_raw_features = jt.array(node_raw_features.astype(np.float32))
         # self.edge_raw_features = torch.from_numpy(edge_raw_features.astype(np.float32)).to(device)
-        self.edge_raw_features = jt.array(edge_raw_features.astype(np.float32))
+        self._edge_raw_features = jt.array(edge_raw_features.astype(np.float32))
 
-        self.node_feat_dim = self.node_raw_features.shape[1]
-        self.edge_feat_dim = self.edge_raw_features.shape[1]
+        self.node_feat_dim = self._node_raw_features.shape[1]
+        self.edge_feat_dim = self._edge_raw_features.shape[1]
         self.time_feat_dim = time_feat_dim
         self.num_layers = num_layers
         self.num_heads = num_heads
@@ -53,7 +53,7 @@ class MemoryModel(jt.Module):
 
         self.model_name = model_name
         # number of nodes, including the padded node
-        self.num_nodes = self.node_raw_features.shape[0]
+        self.num_nodes = self._node_raw_features.shape[0]
         self.memory_dim = self.node_feat_dim
         # since models use the identity function for message encoding, message dimension is 2 * memory_dim + time_feat_dim + edge_feat_dim
         self.message_dim = self.memory_dim + self.memory_dim + self.time_feat_dim + self.edge_feat_dim
@@ -76,8 +76,8 @@ class MemoryModel(jt.Module):
         if self.model_name == 'JODIE':
             self.embedding_module = TimeProjectionEmbedding(memory_dim=self.memory_dim, dropout=self.dropout)
         elif self.model_name in ['TGN', 'DyRep']:
-            self.embedding_module = GraphAttentionEmbedding(node_raw_features=self.node_raw_features,
-                                                            edge_raw_features=self.edge_raw_features,
+            self.embedding_module = GraphAttentionEmbedding(node_raw_features=self._node_raw_features,
+                                                            edge_raw_features=self._edge_raw_features,
                                                             neighbor_sampler=neighbor_sampler,
                                                             time_encoder=self.time_encoder,
                                                             node_feat_dim=self.node_feat_dim,
@@ -248,7 +248,7 @@ class MemoryModel(jt.Module):
 
         # Tensor, shape (batch_size, edge_feat_dim)
         # edge_features = self.edge_raw_features[torch.from_numpy(edge_ids)]
-        edge_features = self.edge_raw_features[jt.array(edge_ids)]
+        edge_features = self._edge_raw_features[jt.array(edge_ids)]
 
         # Tensor, shape (batch_size, message_dim = memory_dim + memory_dim + time_feat_dim + edge_feat_dim)
         # new_src_node_raw_messages = torch.cat([src_node_memories, dst_node_memories, src_node_delta_time_features, edge_features], dim=1)
@@ -330,10 +330,12 @@ class MemoryBank(jt.Module):
 
         # Parameter, treat memory as parameters so that it is saved and loaded together with the model, shape (num_nodes, memory_dim)
         # self.node_memories = nn.Parameter(torch.zeros((self.num_nodes, self.memory_dim)), requires_grad=False)
-        self.node_memories = nn.Parameter(jt.zeros((self.num_nodes, self.memory_dim)), requires_grad=False)
+        self.node_memories = jt.zeros((self.num_nodes, self.memory_dim))
+        self.node_memories.stop_grad()
         # Parameter, last updated time of nodes, shape (num_nodes, )
         # self.node_last_updated_times = nn.Parameter(torch.zeros(self.num_nodes), requires_grad=False)
-        self.node_last_updated_times = nn.Parameter(jt.zeros(self.num_nodes), requires_grad=False)
+        self.node_last_updated_times = jt.zeros(self.num_nodes)
+        self.node_last_updated_times.stop_grad()
         # dictionary of list, {node_id: list of tuples}, each tuple is (message, time) with type (Tensor shape (message_dim, ), a scalar)
         self.node_raw_messages = defaultdict(list)
 
@@ -344,8 +346,10 @@ class MemoryBank(jt.Module):
         initialize all the memories and node_last_updated_times to zero vectors, reset the node_raw_messages, which should be called at the start of each epoch
         :return:
         """
-        self.node_memories.data.zero_()
-        self.node_last_updated_times.data.zero_()
+        # self.node_memories.data.zero_()
+        self.node_memories.zero_()
+        # self.node_last_updated_times.data.zero_()
+        self.node_last_updated_times.zero_()
         self.node_raw_messages = defaultdict(list)
 
     def get_memories(self, node_ids: np.ndarray):
@@ -376,7 +380,7 @@ class MemoryBank(jt.Module):
         for node_id, node_raw_messages in self.node_raw_messages.items():
             cloned_node_raw_messages[node_id] = [(node_raw_message[0].clone(), node_raw_message[1].copy()) for node_raw_message in node_raw_messages]
 
-        return self.node_memories.data.clone(), self.node_last_updated_times.data.clone(), cloned_node_raw_messages
+        return self.node_memories.detach().clone(), self.node_last_updated_times.detach().clone(), cloned_node_raw_messages
 
     def reload_memory_bank(self, backup_memory_bank: tuple):
         """
@@ -395,7 +399,7 @@ class MemoryBank(jt.Module):
         detach the gradients of node memories and node raw messages
         :return:
         """
-        self.node_memories.detach_()
+        self.node_memories.stop_grad()
 
         # Detach all stored messages
         for node_id, node_raw_messages in self.node_raw_messages.items():
@@ -494,7 +498,8 @@ class MemoryUpdater(jt.Module):
         """
         # if unique_node_ids is empty, directly return node_memories and node_last_updated_times without updating
         if len(unique_node_ids) <= 0:
-            return self.memory_bank.node_memories.data.clone(), self.memory_bank.node_last_updated_times.data.clone()
+            # return self.memory_bank.node_memories.data.clone(), self.memory_bank.node_last_updated_times.data.clone()
+            return self.memory_bank.node_memories.detach().clone(), self.memory_bank.node_last_updated_times.detach().clone()
 
         # assert (self.memory_bank.get_node_last_updated_times(unique_node_ids=unique_node_ids) <=
         #         torch.from_numpy(unique_node_timestamps).float().to(unique_node_messages.device)).all().item(), "Trying to update memory to time in the past!"
@@ -502,14 +507,14 @@ class MemoryUpdater(jt.Module):
                 jt.array(unique_node_timestamps).float32()).all().item(), "Trying to update memory to time in the past!"
 
         # Tensor, shape (num_nodes, memory_dim)
-        updated_node_memories = self.memory_bank.node_memories.data.clone()
+        updated_node_memories = self.memory_bank.node_memories.detach().clone()
         # updated_node_memories[torch.from_numpy(unique_node_ids)] = self.memory_updater(unique_node_messages,
         #                                                                                updated_node_memories[torch.from_numpy(unique_node_ids)])
         updated_node_memories[jt.array(unique_node_ids)] = self.memory_updater(unique_node_messages,
                                                                                        updated_node_memories[jt.array(unique_node_ids)])                                                                                       
 
         # Tensor, shape (num_nodes, )
-        updated_node_last_updated_times = self.memory_bank.node_last_updated_times.data.clone()
+        updated_node_last_updated_times = self.memory_bank.node_last_updated_times.detach().clone()
         # updated_node_last_updated_times[torch.from_numpy(unique_node_ids)] = torch.from_numpy(unique_node_timestamps).float().to(unique_node_messages.device)
         updated_node_last_updated_times[jt.array(unique_node_ids)] = jt.array(unique_node_timestamps).float32()
 
@@ -594,8 +599,8 @@ class GraphAttentionEmbedding(jt.Module):
         """
         super(GraphAttentionEmbedding, self).__init__()
 
-        self.node_raw_features = node_raw_features
-        self.edge_raw_features = edge_raw_features
+        self._node_raw_features = node_raw_features
+        self._edge_raw_features = edge_raw_features
         self.neighbor_sampler = neighbor_sampler
         self.time_encoder = time_encoder
         self.node_feat_dim = node_feat_dim
@@ -627,7 +632,7 @@ class GraphAttentionEmbedding(jt.Module):
         """
 
         assert (current_layer_num >= 0)
-        device = self.node_raw_features.device
+        # device = self.node_raw_features.device
 
         # query (source) node always has the start time with time interval == 0
         # shape (batch_size, 1, time_feat_dim)
@@ -637,7 +642,7 @@ class GraphAttentionEmbedding(jt.Module):
         # add memory and node raw features to get node features
         # note that when using getting values of the ids from Tensor, convert the ndarray to tensor to avoid wrong retrieval
         # node_features = node_memories[torch.from_numpy(node_ids)] + self.node_raw_features[torch.from_numpy(node_ids)]
-        node_features = node_memories[jt.array(node_ids)] + self.node_raw_features[jt.array(node_ids)]
+        node_features = node_memories[jt.array(node_ids)] + self._node_raw_features[jt.array(node_ids)]
 
         if current_layer_num == 0:
             return node_features
@@ -680,7 +685,7 @@ class GraphAttentionEmbedding(jt.Module):
 
             # get edge features, shape (batch_size, num_neighbors, edge_feat_dim)
             # neighbor_edge_features = self.edge_raw_features[torch.from_numpy(neighbor_edge_ids)]
-            neighbor_edge_features = self.edge_raw_features[jt.array(neighbor_edge_ids)]
+            neighbor_edge_features = self._edge_raw_features[jt.array(neighbor_edge_ids)]
             # temporal graph convolution
             # Tensor, output shape (batch_size, node_feat_dim + time_feat_dim)
             output, _ = self.temporal_conv_layers[current_layer_num - 1](node_features=node_conv_features,
@@ -729,3 +734,9 @@ def compute_src_dst_node_time_shifts(src_node_ids: np.ndarray, dst_node_ids: np.
     dst_node_std_time_shift = np.std(dst_node_all_time_shifts)
 
     return src_node_mean_time_shift, src_node_std_time_shift, dst_node_mean_time_shift_dst, dst_node_std_time_shift
+
+if __name__ == "__main__":
+    bank = MemoryBank(10, 10)
+    for p in MemoryBank.parameters():
+        print(p.names())
+        print(p.requires_grad())
